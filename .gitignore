@@ -3,4 +3,3 @@ venv
 *.egg-info
 venv/
 .idea/
-requirements.txt

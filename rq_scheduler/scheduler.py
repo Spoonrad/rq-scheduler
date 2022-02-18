@@ -20,9 +20,6 @@ from .utils import from_unix, to_unix, get_next_scheduled_time, rationalize_unti
 
 logger = logging.getLogger(__name__)
 
-class Clock(object):
-    def now_timestamp(self):
-        return time.time()
 
 class Scheduler(object):
     redis_scheduler_namespace_prefix = 'rq:scheduler_instance:'
@@ -33,7 +30,7 @@ class Scheduler(object):
     job_class = Job
 
     def __init__(self, queue_name='default', queue=None, interval=60, connection=None,
-                 job_class=None, queue_class=None, name=None, clock=None):
+                 job_class=None, queue_class=None, name=None):
         from rq.connections import resolve_connection
         self.connection = resolve_connection(connection)
         self._queue = queue
@@ -50,7 +47,6 @@ class Scheduler(object):
             self.queue_class_name = queue_class
         self.queue_class = backend_class(self, 'queue_class', override=queue_class)
         self.name = name or uuid4().hex
-        self.clock = clock if clock else Clock()
 
     @property
     def key(self):
@@ -69,7 +65,7 @@ class Scheduler(object):
             raise ValueError("There's already an active RQ scheduler named: {0!r}".format(self.name))
 
         key = self.key
-        now = self.clock.now_timestamp()
+        now = time.time()
 
         with self.connection.pipeline() as p:
             p.delete(key)
@@ -84,7 +80,7 @@ class Scheduler(object):
         """Registers its own death."""
         self.log.info('Registering death')
         with self.connection.pipeline() as p:
-            p.hset(self.key, 'death', self.clock.now_timestamp())
+            p.hset(self.key, 'death', time.time())
             p.expire(self.key, 60)
             p.execute()
 
@@ -96,7 +92,7 @@ class Scheduler(object):
         This function returns True if a lock is acquired. False otherwise.
         """
         key = self.scheduler_lock_key
-        now = self.clock.now_timestamp()
+        now = time.time()
         expires = int(self._interval) + 10
         self._lock_acquired = self.connection.set(
                 key, now, ex=expires, nx=True)
@@ -467,7 +463,7 @@ class Scheduler(object):
                 self.log.debug("Entering run loop")
                 self.heartbeat()
 
-                start_time = self.clock.now_timestamp()
+                start_time = time.time()
                 if self.acquire_lock():
                     self.log.debug('{}: Acquired Lock'.format(self.key))
                     self.enqueue_jobs()
@@ -481,7 +477,7 @@ class Scheduler(object):
                     self.log.warning('Lock already taken - skipping run')
 
                 # Time has already elapsed while enqueuing jobs, so don't wait too long.
-                seconds_elapsed_since_start = self.clock.now_timestamp() - start_time
+                seconds_elapsed_since_start = time.time() - start_time
                 seconds_until_next_scheduled_run = self._interval - seconds_elapsed_since_start
                 # ensure we have a non-negative number
                 if seconds_until_next_scheduled_run > 0:
