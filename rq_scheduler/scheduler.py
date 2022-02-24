@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class Clock(object):
     """Abstraction to provide time used to identity jobs that must be executed
     This is NOT used for the implementation of polling intervals."""
-    def now_utc(self):
+    def now(self):
         return datetime.utcnow()
 
 class Scheduler(object):
@@ -235,7 +235,7 @@ class Scheduler(object):
                                description=job_description, meta=meta, queue_name=queue_name,
                                depends_on=depends_on, on_success=on_success, on_failure=on_failure)
         self.connection.zadd(self.scheduled_jobs_key,
-                              {job.id: to_unix(self.clock.now_utc() + time_delta)})
+                             {job.id: to_unix(self.clock.now() + time_delta)})
         return job
 
     def schedule(self, scheduled_time, func, args=None, kwargs=None,
@@ -385,7 +385,7 @@ class Scheduler(object):
         If with_times is True a list of tuples consisting of the job instance and
         it's scheduled execution time is returned.
         """
-        return self.get_jobs(to_unix(self.clock.now_utc()), with_times=with_times)
+        return self.get_jobs(to_unix(self.clock.now()), with_times=with_times)
 
     def get_queue_for_job(self, job):
         """
@@ -425,7 +425,7 @@ class Scheduler(object):
                 if job.meta['repeat'] == 0:
                     return
             self.connection.zadd(self.scheduled_jobs_key,
-                                  {job.id: to_unix(self.clock.now_utc()) + int(interval)})
+                                 {job.id: to_unix(self.clock.now()) + int(interval)})
         elif cron_string:
             # If this is a repeat job and counter has reached 0, don't repeat
             if repeat is not None:
